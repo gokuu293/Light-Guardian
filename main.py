@@ -1,47 +1,48 @@
 import pygame
-import random
+import sys
+from scenes.menu import MainMenu
+from scenes.game_level import GameLevel
+from entities.player import Player
 from settings import *
-from player import Player
-from maze import Maze
 
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((MAZE_WIDTH * CELL_SIZE, MAZE_HEIGHT * CELL_SIZE))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Light Guardian")
     clock = pygame.time.Clock()
     
-    # Создаем лабиринт первым
-    maze = Maze()
-    player = Player(maze)  # Передаем лабиринт для корректного спавна
-    
-    font = pygame.font.SysFont('Arial', 24)
+    # Сцены игры
+    scenes = {
+        "menu": MainMenu(),
+        "game": GameLevel()
+    }
+    current_scene = "menu"
     
     running = True
     while running:
-        for event in pygame.event.get():
+        events = pygame.event.get()
+        for event in events:
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    maze = Maze()
-                    player = Player(maze)
         
-        player.handle_input(maze)
+        # Обновление текущей сцены
+        scene_result = scenes[current_scene].handle_input(events)
+        scenes[current_scene].update()
+        scenes[current_scene].draw(screen)
         
-        screen.fill(BLACK)
-        maze.draw(screen)
-        player.draw(screen)
-        
-        # Интерфейс
-        battery_status = "Фонарик выключен" if player.light.battery <= 0 else f"Заряд: {int(player.light.battery)}%"
-        battery_text = font.render(battery_status, True, WHITE)
-        screen.blit(battery_text, (10, 10))
+        # Обработка переключения сцен
+        if scene_result == "start_game":
+            current_scene = "game"
+        elif scene_result == "exit":
+            running = False
         
         pygame.display.flip()
         clock.tick(FPS)
     
     pygame.quit()
+    sys.exit()
+
 
 if __name__ == "__main__":
     main()

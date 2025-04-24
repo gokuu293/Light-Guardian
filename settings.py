@@ -1,23 +1,22 @@
 # Настройки экрана
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 FPS = 60
 
 # Цвета
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-
-# Настройки игрока
-PLAYER_SPEED = 5
-
-# Освещение
-LIGHT_RADIUS = 150
-LIGHT_COLOR = (255, 255, 180, 180)  # RGBA (последнее - прозрачность)
-LIGHT_DRAIN_RATE = 0.5  # Скорость разрядки фонарика
-
-# Лабиринт
-MAZE_WIDTH = 20    # Ширина в ячейках
-MAZE_HEIGHT = 15   # Высота в ячейках
-CELL_SIZE = 40     # Размер ячейки в пикселях
 WALL_COLOR = (30, 30, 30)
+LIGHT_AMBER = (255, 191, 0, 180)  # RGBA для фонарика
+
+# Игрок
+PLAYER_SPEED = 4
+PLAYER_SIZE = 20
+
+# Фонарик
+LIGHT_RADIUS = 150
+LIGHT_ANGLE = 45
+LIGHT_DRAIN = 0.1
+
+# Размеры стен
+WALL_THICKNESS = 20  # Толщина внешних стен
