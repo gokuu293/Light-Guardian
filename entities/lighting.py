@@ -44,3 +44,6 @@ class Flashlight:
         
         pygame.draw.polygon(self.light_surface, LIGHT_AMBER, points)
         screen.blit(self.light_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def get_current_radius(self):
+        return LIGHT_RADIUS * (self.battery / 100)

@@ -1,5 +1,7 @@
 import pygame
+import random
 from settings import *
+from entities.enemy import Enemy
 
 
 class Level1:
@@ -23,21 +25,57 @@ class Level1:
             pygame.Rect(800, 400, WALL_THICKNESS, 200),   # Право центра
         ]
         
+        # Батарейки для пополнения заряда
         self.batteries = [
             pygame.Rect(350, 150, 20, 20),
-            pygame.Rect(600, 450, 20, 20)
+            pygame.Rect(600, 450, 20, 20),
+            pygame.Rect(200, 500, 20, 20),
+            pygame.Rect(800, 200, 20, 20)
+        ]
+        
+        # Враги
+        self.enemies = [
+            Enemy(500, 200),
+            Enemy(700, 500),
+            Enemy(300, 400)
         ]
         
         self.exit = pygame.Rect(SCREEN_WIDTH-50, SCREEN_HEIGHT-50, 40, 40)
 
+    def update(self, player):
+        # Обновление врагов
+        for enemy in self.enemies:
+            enemy.update(player, self, player.flashlight.on)
+        
+        # Проверка сбора батареек
+        for battery in self.batteries[:]:
+            if player.rect.colliderect(battery):
+                player.flashlight.battery = min(100, player.flashlight.battery + 25)
+                self.batteries.remove(battery)
+        
+        # Проверка столкновения с врагами
+        for enemy in self.enemies:
+            if player.rect.colliderect(enemy.rect) and enemy.state != "stunned":
+                return "game_over"
+                
+        # Проверка достижения выхода
+        if player.rect.colliderect(self.exit):
+            return "level_complete"
+            
+        return None
+
     def draw(self, screen):
         # Стены
         for wall in self.walls:
-            pygame.draw.rect(screen, (30, 30, 30), wall)
+            pygame.draw.rect(screen, WALL_COLOR, wall)
         
         # Батарейки
         for battery in self.batteries:
             pygame.draw.rect(screen, (0, 255, 0), battery)
+        
+        # Враги
+        for enemy in self.enemies:
+            enemy.draw(screen)
         
         # Выход
         pygame.draw.rect(screen, (255, 0, 0), self.exit)
