@@ -9,9 +9,13 @@ class Player:
         self.speed = PLAYER_SPEED
         self.flashlight = Flashlight(self.rect.centerx, self.rect.centery)
 
-    def handle_input(self, events, level):
+    def handle_input(self, events, level, camera):
         keys = pygame.key.get_pressed()
-        mouse_x, mouse_y = pygame.mouse.get_pos()
+        
+        # Получаем позицию мыши и преобразуем с учетом камеры
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_x = mouse_pos[0] + camera.rect.x
+        mouse_y = mouse_pos[1] + camera.rect.y
         
         # Обновление фонарика
         self.flashlight.update(mouse_x, mouse_y, self.rect.centerx, self.rect.centery)
@@ -23,12 +27,18 @@ class Player:
         if keys[pygame.K_a]: dx -= self.speed
         if keys[pygame.K_d]: dx += self.speed
         
-        new_rect = self.rect.copy()
-        new_rect.x += dx
-        new_rect.y += dy
+        # Проверяем движение по осям отдельно для предотвращения "застревания" в стенах
+        if dx != 0:
+            new_rect = self.rect.copy()
+            new_rect.x += dx
+            if not self.check_collision(new_rect, level):
+                self.rect.x = new_rect.x
         
-        if not self.check_collision(new_rect, level):
-            self.rect = new_rect
+        if dy != 0:
+            new_rect = self.rect.copy()
+            new_rect.y += dy
+            if not self.check_collision(new_rect, level):
+                self.rect.y = new_rect.y
 
     def check_collision(self, rect, level):
         for wall in level.walls:
@@ -36,6 +46,10 @@ class Player:
                 return True
         return False
 
-    def draw(self, screen):
-        pygame.draw.rect(screen, WHITE, self.rect)
-        self.flashlight.draw(screen)
+    def draw(self, screen, camera, level):
+        # Отрисовка игрока с учетом камеры
+        player_rect = camera.apply(self.rect)
+        pygame.draw.rect(screen, WHITE, player_rect)
+        
+        # Отрисовка фонарика с учетом камеры
+        self.flashlight.draw(screen, camera, level)

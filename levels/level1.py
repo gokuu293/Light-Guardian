@@ -6,41 +6,107 @@ from entities.enemy import Enemy
 
 class Level1:
     def __init__(self):
+        # Создаем большую карту подземелья
+        self.width = MAP_WIDTH
+        self.height = MAP_HEIGHT
+        
+        # Внешние стены
         self.walls = [
-            # Внешние стены
-            pygame.Rect(0, 0, SCREEN_WIDTH, WALL_THICKNESS),  # Верх
-            pygame.Rect(0, 0, WALL_THICKNESS, SCREEN_HEIGHT),  # Лево
-            pygame.Rect(0, SCREEN_HEIGHT-WALL_THICKNESS, SCREEN_WIDTH, WALL_THICKNESS),  # Низ
-            pygame.Rect(SCREEN_WIDTH-WALL_THICKNESS, 0, WALL_THICKNESS, SCREEN_HEIGHT),  # Право
-            
-            # Комнаты и коридоры
-            pygame.Rect(300, 100, WALL_THICKNESS, 300),  # Левая стена комнаты 1
-            pygame.Rect(300, 100, 400, WALL_THICKNESS),   # Верх комнаты 1
-            pygame.Rect(700, 100, WALL_THICKNESS, 300),   # Правая стена комнаты 1
-            pygame.Rect(500, 300, 200, WALL_THICKNESS),   # Нижняя перегородка
-            
-            # Большая центральная комната
-            pygame.Rect(400, 400, 400, WALL_THICKNESS),   # Верх центра
-            pygame.Rect(400, 400, WALL_THICKNESS, 200),   # Лево центра
-            pygame.Rect(800, 400, WALL_THICKNESS, 200),   # Право центра
+            # Внешние границы
+            pygame.Rect(0, 0, self.width, WALL_THICKNESS),  # Верх
+            pygame.Rect(0, 0, WALL_THICKNESS, self.height),  # Лево
+            pygame.Rect(0, self.height-WALL_THICKNESS, self.width, WALL_THICKNESS),  # Низ
+            pygame.Rect(self.width-WALL_THICKNESS, 0, WALL_THICKNESS, self.height),  # Право
         ]
+        
+        # Добавляем стены для создания подземелья
+        self._create_dungeon_walls()
         
         # Батарейки для пополнения заряда
         self.batteries = [
             pygame.Rect(350, 150, 20, 20),
             pygame.Rect(600, 450, 20, 20),
             pygame.Rect(200, 500, 20, 20),
-            pygame.Rect(800, 200, 20, 20)
+            pygame.Rect(800, 200, 20, 20),
+            pygame.Rect(1200, 300, 20, 20),
+            pygame.Rect(1500, 600, 20, 20),
+            pygame.Rect(1800, 400, 20, 20),
+            pygame.Rect(2000, 800, 20, 20),
         ]
         
         # Враги
         self.enemies = [
             Enemy(500, 200),
             Enemy(700, 500),
-            Enemy(300, 400)
+            Enemy(300, 400),
+            Enemy(1200, 600),
+            Enemy(1600, 300),
+            Enemy(1800, 700),
+            Enemy(2000, 400),
         ]
         
-        self.exit = pygame.Rect(SCREEN_WIDTH-50, SCREEN_HEIGHT-50, 40, 40)
+        self.exit = pygame.Rect(self.width-100, self.height-100, 40, 40)
+    
+    def _create_dungeon_walls(self):
+        # Основные коридоры и комнаты подземелья
+        
+        # Центральный зал
+        central_hall = pygame.Rect(800, 500, 400, 300)
+        
+        # Коридоры
+        corridors = [
+            # Горизонтальные коридоры
+            pygame.Rect(300, 300, 500, WALL_THICKNESS*2),
+            pygame.Rect(1200, 600, 600, WALL_THICKNESS*2),
+            pygame.Rect(600, 900, 800, WALL_THICKNESS*2),
+            
+            # Вертикальные коридоры
+            pygame.Rect(500, 300, WALL_THICKNESS*2, 600),
+            pygame.Rect(1000, 200, WALL_THICKNESS*2, 700),
+            pygame.Rect(1500, 400, WALL_THICKNESS*2, 500),
+        ]
+        
+        # Комнаты
+        rooms = [
+            # Верхние комнаты
+            pygame.Rect(300, 100, 200, 200),
+            pygame.Rect(700, 150, 250, 150),
+            pygame.Rect(1200, 200, 300, 200),
+            pygame.Rect(1800, 100, 350, 250),
+            
+            # Нижние комнаты
+            pygame.Rect(200, 700, 250, 200),
+            pygame.Rect(1300, 800, 200, 300),
+            pygame.Rect(1800, 700, 400, 200),
+        ]
+        
+        # Создаем стены для комнат и коридоров
+        for room in rooms:
+            # Верхняя стена
+            self.walls.append(pygame.Rect(room.x, room.y, room.width, WALL_THICKNESS))
+            # Левая стена
+            self.walls.append(pygame.Rect(room.x, room.y, WALL_THICKNESS, room.height))
+            # Правая стена
+            self.walls.append(pygame.Rect(room.x + room.width - WALL_THICKNESS, room.y, WALL_THICKNESS, room.height))
+            # Нижняя стена
+            self.walls.append(pygame.Rect(room.x, room.y + room.height - WALL_THICKNESS, room.width, WALL_THICKNESS))
+        
+        # Добавляем случайные колонны и препятствия
+        for _ in range(20):
+            x = random.randint(100, self.width - 100)
+            y = random.randint(100, self.height - 100)
+            size = random.randint(30, 80)
+            
+            # Проверяем, не перекрывает ли новое препятствие существующие стены
+            new_obstacle = pygame.Rect(x, y, size, size)
+            overlap = False
+            for wall in self.walls:
+                if new_obstacle.colliderect(wall):
+                    overlap = True
+                    break
+            
+            if not overlap:
+                self.walls.append(new_obstacle)
 
     def update(self, player):
         # Обновление врагов
@@ -64,18 +130,38 @@ class Level1:
             
         return None
 
-    def draw(self, screen):
-        # Стены
+    def draw(self, screen, camera):
+        # Рисуем пол подземелья
+        screen.fill(DUNGEON_FLOOR)
+        
+        # Стены - рисуем только те, что видны на экране
         for wall in self.walls:
-            pygame.draw.rect(screen, WALL_COLOR, wall)
+            wall_rect = camera.apply(wall)
+            # Проверяем, находится ли стена в пределах экрана
+            if (wall_rect.right >= 0 and wall_rect.left <= SCREEN_WIDTH and 
+                wall_rect.bottom >= 0 and wall_rect.top <= SCREEN_HEIGHT):
+                pygame.draw.rect(screen, WALL_COLOR, wall_rect)
         
-        # Батарейки
+        # Батарейки - рисуем только видимые
         for battery in self.batteries:
-            pygame.draw.rect(screen, (0, 255, 0), battery)
+            battery_rect = camera.apply(battery)
+            if (battery_rect.right >= 0 and battery_rect.left <= SCREEN_WIDTH and 
+                battery_rect.bottom >= 0 and battery_rect.top <= SCREEN_HEIGHT):
+                pygame.draw.rect(screen, (0, 255, 0), battery_rect)
         
-        # Враги
+        # Враги - рисуем только видимых
         for enemy in self.enemies:
-            enemy.draw(screen)
+            enemy_rect = camera.apply(enemy.rect)
+            if (enemy_rect.right >= 0 and enemy_rect.left <= SCREEN_WIDTH and 
+                enemy_rect.bottom >= 0 and enemy_rect.top <= SCREEN_HEIGHT):
+                # Используем временный прямоугольник для отрисовки
+                color = ENEMY_COLOR
+                if enemy.state == "stunned":
+                    color = ENEMY_STUNNED_COLOR
+                pygame.draw.rect(screen, color, enemy_rect)
         
         # Выход
-        pygame.draw.rect(screen, (255, 0, 0), self.exit)
+        exit_rect = camera.apply(self.exit)
+        if (exit_rect.right >= 0 and exit_rect.left <= SCREEN_WIDTH and 
+            exit_rect.bottom >= 0 and exit_rect.top <= SCREEN_HEIGHT):
+            pygame.draw.rect(screen, (255, 0, 0), exit_rect)

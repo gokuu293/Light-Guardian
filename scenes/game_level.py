@@ -1,6 +1,7 @@
 import pygame
 from settings import *
 from entities.player import Player
+from entities.camera import Camera
 from levels.level1 import Level1
 
 
@@ -8,10 +9,12 @@ class GameLevel:
     def __init__(self):
         self.player = Player()
         self.level = Level1()
-        self.walls = self.level.walls
+        self.camera = Camera()
+        self.camera.set_target(self.player)
         self.font = pygame.font.SysFont('Arial', 24)
         self.game_state = "playing"  # playing, game_over, level_complete
         self.message_timer = 0
+        self.fullscreen = FULLSCREEN
 
     def handle_input(self, events):
         for event in events:
@@ -22,13 +25,17 @@ class GameLevel:
                     self.__init__()  # Перезапуск уровня
                 if event.key == pygame.K_SPACE and self.game_state == "level_complete":
                     return "menu"  # Временно возвращаемся в меню
+                if event.key == pygame.K_f:  # Переключение полноэкранного режима
+                    self._toggle_fullscreen()
                     
         if self.game_state == "playing":
-            self.player.handle_input(events, self.level)
+            self.player.handle_input(events, self.level, self.camera)
         return None
 
     def update(self):
         if self.game_state == "playing":
+            # Обновление камеры с учетом размеров карты
+            self.camera.update(self.level.width, self.level.height)
             level_result = self.level.update(self.player)
             
             if level_result == "game_over":
@@ -44,9 +51,9 @@ class GameLevel:
     def draw(self, screen):
         screen.fill(BLACK)
         
-        # Отрисовка уровня и игрока
-        self.level.draw(screen)
-        self.player.draw(screen)
+        # Отрисовка уровня и игрока с учетом камеры
+        self.level.draw(screen, self.camera)
+        self.player.draw(screen, self.camera, self.level)
 
         # Отрисовка заряда батареи
         battery_text = self.font.render(
@@ -75,4 +82,12 @@ class GameLevel:
         
         # Отрисовка подзаголовка
         subtitle_text = self.font.render(subtitle, True, WHITE)
-        screen.blit(subtitle_text, (SCREEN_WIDTH//2 - subtitle_text.get_width()//2, SCREEN_HEIGHT//2 + 20)) 
+        screen.blit(subtitle_text, (SCREEN_WIDTH//2 - subtitle_text.get_width()//2, SCREEN_HEIGHT//2 + 20))
+    
+    def _toggle_fullscreen(self):
+        global FULLSCREEN
+        FULLSCREEN = not FULLSCREEN
+        if FULLSCREEN:
+            pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
+        else:
+            pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT)) 

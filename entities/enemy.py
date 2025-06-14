@@ -21,7 +21,7 @@ class Enemy:
             return
         
         # Проверка, находится ли враг в свете фонарика
-        in_light = self.is_in_light(player)
+        in_light = self.is_in_light(player, level)
         if in_light and flashlight_on:
             self.state = "stunned"
             self.stunned_timer = ENEMY_STUN_TIME
@@ -51,12 +51,18 @@ class Enemy:
             dx = dx / distance * self.speed
             dy = dy / distance * self.speed
         
-        new_rect = self.rect.copy()
-        new_rect.x += dx
-        new_rect.y += dy
+        # Проверяем движение по осям отдельно для предотвращения "застревания"
+        new_rect_x = self.rect.copy()
+        new_rect_x.x += dx
         
-        if not self.check_collision(new_rect, level):
-            self.rect = new_rect
+        new_rect_y = self.rect.copy()
+        new_rect_y.y += dy
+        
+        if not self.check_collision(new_rect_x, level):
+            self.rect.x = new_rect_x.x
+            
+        if not self.check_collision(new_rect_y, level):
+            self.rect.y = new_rect_y.y
     
     def idle_movement(self, level):
         self.idle_timer += 1
@@ -66,14 +72,23 @@ class Enemy:
             self.idle_duration = random.randint(60, 120)
         
         dx, dy = self.direction
-        new_rect = self.rect.copy()
-        new_rect.x += dx * self.speed / 2
-        new_rect.y += dy * self.speed / 2
         
-        if not self.check_collision(new_rect, level):
-            self.rect = new_rect
+        # Проверяем движение по осям отдельно
+        new_rect_x = self.rect.copy()
+        new_rect_x.x += dx * self.speed / 2
+        
+        new_rect_y = self.rect.copy()
+        new_rect_y.y += dy * self.speed / 2
+        
+        if not self.check_collision(new_rect_x, level):
+            self.rect.x = new_rect_x.x
         else:
-            self.direction = (-dx, -dy)  # Разворот при столкновении
+            self.direction = (-dx, dy)  # Меняем направление по X
+            
+        if not self.check_collision(new_rect_y, level):
+            self.rect.y = new_rect_y.y
+        else:
+            self.direction = (dx, -dy)  # Меняем направление по Y
     
     def check_collision(self, rect, level):
         for wall in level.walls:
@@ -81,7 +96,7 @@ class Enemy:
                 return True
         return False
     
-    def is_in_light(self, player):
+    def is_in_light(self, player, level):
         # Проверка, находится ли враг в конусе света фонарика
         dx = self.rect.centerx - player.rect.centerx
         dy = self.rect.centery - player.rect.centery
@@ -95,10 +110,47 @@ class Enemy:
         angle_diff = abs(angle - player.flashlight.angle)
         angle_diff = min(angle_diff, 2 * math.pi - angle_diff)
         
-        return angle_diff <= math.radians(LIGHT_ANGLE / 2)
+        if angle_diff > math.radians(LIGHT_ANGLE / 2):
+            return False
+            
+        # Проверка, нет ли препятствий между игроком и врагом
+        # Используем алгоритм Брезенхема для проверки линии видимости
+        return self.has_line_of_sight(player.rect.centerx, player.rect.centery, 
+                                     self.rect.centerx, self.rect.centery, level.walls)
     
-    def draw(self, screen):
+    def has_line_of_sight(self, x1, y1, x2, y2, walls):
+        """Проверяет, есть ли прямая видимость между двумя точками"""
+        # Алгоритм Брезенхема для проверки линии
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+        err = dx - dy
+        
+        check_rect = pygame.Rect(0, 0, 4, 4)
+        
+        while x1 != x2 or y1 != y2:
+            check_rect.x = x1 - 2
+            check_rect.y = y1 - 2
+            
+            for wall in walls:
+                if wall.colliderect(check_rect):
+                    return False
+                    
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x1 += sx
+            if e2 < dx:
+                err += dx
+                y1 += sy
+                
+        return True
+    
+    def draw(self, screen, camera):
+        # Отрисовка врага с учетом камеры
+        enemy_rect = camera.apply(self.rect)
         color = ENEMY_COLOR
         if self.state == "stunned":
             color = ENEMY_STUNNED_COLOR
-        pygame.draw.rect(screen, color, self.rect) 
+        pygame.draw.rect(screen, color, enemy_rect) 
