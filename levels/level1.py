@@ -1,7 +1,7 @@
 import pygame
 import random
 from settings import *
-from entities.enemy import Enemy
+from utils.enemy_manager import EnemyManager
 
 
 class Level1:
@@ -24,28 +24,21 @@ class Level1:
         
         # Батарейки для пополнения заряда
         self.batteries = [
-            pygame.Rect(350, 150, 20, 20),
-            pygame.Rect(600, 450, 20, 20),
-            pygame.Rect(200, 500, 20, 20),
-            pygame.Rect(800, 200, 20, 20),
-            pygame.Rect(1200, 300, 20, 20),
-            pygame.Rect(1500, 600, 20, 20),
-            pygame.Rect(1800, 400, 20, 20),
-            pygame.Rect(2000, 800, 20, 20),
+            pygame.Rect(350, 150, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(600, 450, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(200, 500, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(800, 200, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(1200, 300, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(1500, 600, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(1800, 400, BATTERY_SIZE, BATTERY_SIZE),
+            pygame.Rect(2000, 800, BATTERY_SIZE, BATTERY_SIZE),
         ]
         
-        # Враги
-        self.enemies = [
-            Enemy(500, 200),
-            Enemy(700, 500),
-            Enemy(300, 400),
-            Enemy(1200, 600),
-            Enemy(1600, 300),
-            Enemy(1800, 700),
-            Enemy(2000, 400),
-        ]
+        # Менеджер врагов
+        self.enemy_manager = EnemyManager()
         
-        self.exit = pygame.Rect(self.width-100, self.height-100, 40, 40)
+        # Выход с уровня
+        self.exit = pygame.Rect(self.width-100, self.height-100, EXIT_SIZE, EXIT_SIZE)
     
     def _create_dungeon_walls(self):
         # Основные коридоры и комнаты подземелья
@@ -109,20 +102,16 @@ class Level1:
                 self.walls.append(new_obstacle)
 
     def update(self, player):
-        # Обновление врагов
-        for enemy in self.enemies:
-            enemy.update(player, self, player.flashlight.on)
+        # Обновление врагов через менеджер
+        enemy_result = self.enemy_manager.update(player, self)
+        if enemy_result == "game_over":
+            return "game_over"
         
         # Проверка сбора батареек
         for battery in self.batteries[:]:
             if player.rect.colliderect(battery):
-                player.flashlight.battery = min(100, player.flashlight.battery + 25)
+                player.flashlight.battery = min(100, player.flashlight.battery + BATTERY_CHARGE)
                 self.batteries.remove(battery)
-        
-        # Проверка столкновения с врагами
-        for enemy in self.enemies:
-            if player.rect.colliderect(enemy.rect) and enemy.state != "stunned":
-                return "game_over"
                 
         # Проверка достижения выхода
         if player.rect.colliderect(self.exit):
@@ -149,16 +138,8 @@ class Level1:
                 battery_rect.bottom >= 0 and battery_rect.top <= SCREEN_HEIGHT):
                 pygame.draw.rect(screen, (0, 255, 0), battery_rect)
         
-        # Враги - рисуем только видимых
-        for enemy in self.enemies:
-            enemy_rect = camera.apply(enemy.rect)
-            if (enemy_rect.right >= 0 and enemy_rect.left <= SCREEN_WIDTH and 
-                enemy_rect.bottom >= 0 and enemy_rect.top <= SCREEN_HEIGHT):
-                # Используем временный прямоугольник для отрисовки
-                color = ENEMY_COLOR
-                if enemy.state == "stunned":
-                    color = ENEMY_STUNNED_COLOR
-                pygame.draw.rect(screen, color, enemy_rect)
+        # Отрисовка врагов через менеджер
+        self.enemy_manager.draw(screen, camera)
         
         # Выход
         exit_rect = camera.apply(self.exit)
