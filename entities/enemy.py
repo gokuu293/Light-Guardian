@@ -231,4 +231,4 @@ class GhostEnemy(Enemy):
         if self.state != "affected_by_light" and self.speed != self.normal_speed:
             self.speed = self.normal_speed
             self.color = (GHOST_ENEMY_COLOR[0], GHOST_ENEMY_COLOR[1],
-                          GHOST_ENEMY_COLOR[2], GHOST_ENEMY_COLOR[3]) 
+                          GHOST_ENEMY_COLOR[2], GHOST_ENEMY_COLOR[3])

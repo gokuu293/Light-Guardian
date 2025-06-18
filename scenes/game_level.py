@@ -15,6 +15,9 @@ class GameLevel:
         self.game_state = "playing"  # playing, game_over, level_complete
         self.message_timer = 0
         self.fullscreen = FULLSCREEN
+        
+        # Сбрасываем флаг начального спавна врагов
+        self.level.enemy_manager.initial_spawn_done = False
 
     def handle_input(self, events):
         for event in events:

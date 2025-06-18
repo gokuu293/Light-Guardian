@@ -23,16 +23,8 @@ class Level1:
         self._create_dungeon_walls()
         
         # Батарейки для пополнения заряда
-        self.batteries = [
-            pygame.Rect(350, 150, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(600, 450, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(200, 500, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(800, 200, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(1200, 300, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(1500, 600, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(1800, 400, BATTERY_SIZE, BATTERY_SIZE),
-            pygame.Rect(2000, 800, BATTERY_SIZE, BATTERY_SIZE),
-        ]
+        self.batteries = []
+        self._spawn_batteries(8)  # Создаем 8 батареек в безопасных местах
         
         # Менеджер врагов
         self.enemy_manager = EnemyManager()
@@ -100,6 +92,107 @@ class Level1:
             
             if not overlap:
                 self.walls.append(new_obstacle)
+    
+    def _spawn_batteries(self, count):
+        """Создает батарейки в местах, где нет стен"""
+        batteries_created = 0
+        
+        # Предопределенные безопасные позиции для первых нескольких батареек
+        safe_positions = [
+            (350, 150),
+            (600, 450),
+            (800, 200),
+            (1200, 300),
+        ]
+        
+        # Сначала размещаем батарейки в предопределенных позициях
+        for pos in safe_positions:
+            x, y = pos
+            battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
+            
+            # Проверяем, не перекрывает ли батарейка стены
+            collision = False
+            for wall in self.walls:
+                if battery_rect.colliderect(wall):
+                    collision = True
+                    break
+            
+            if not collision:
+                self.batteries.append(battery_rect)
+                batteries_created += 1
+                
+            if batteries_created >= count:
+                return
+        
+        # Если нужно больше батареек, создаем их в случайных местах
+        max_attempts = 100  # Максимальное количество попыток найти подходящее место
+        
+        while batteries_created < count and max_attempts > 0:
+            x = random.randint(100, self.width - 100)
+            y = random.randint(100, self.height - 100)
+            battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
+            
+            # Проверяем коллизии со стенами
+            collision = False
+            for wall in self.walls:
+                if battery_rect.colliderect(wall):
+                    collision = True
+                    break
+            
+            # Проверяем коллизии с другими батарейками (чтобы не накладывались)
+            if not collision:
+                for other_battery in self.batteries:
+                    if battery_rect.colliderect(other_battery):
+                        collision = True
+                        break
+            
+            if not collision:
+                self.batteries.append(battery_rect)
+                batteries_created += 1
+            else:
+                max_attempts -= 1
+    
+    def add_battery(self, x=None, y=None):
+        """Добавляет новую батарейку в указанной позиции или в случайном месте"""
+        if x is None or y is None:
+            # Случайное размещение
+            for _ in range(50):  # Максимум 50 попыток
+                x = random.randint(100, self.width - 100)
+                y = random.randint(100, self.height - 100)
+                battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
+                
+                # Проверяем коллизии
+                collision = False
+                for wall in self.walls:
+                    if battery_rect.colliderect(wall):
+                        collision = True
+                        break
+                
+                if not collision:
+                    for other_battery in self.batteries:
+                        if battery_rect.colliderect(other_battery):
+                            collision = True
+                            break
+                
+                if not collision:
+                    self.batteries.append(battery_rect)
+                    return True
+            return False
+        else:
+            # Размещение в указанной позиции
+            battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
+            
+            # Проверяем коллизии
+            for wall in self.walls:
+                if battery_rect.colliderect(wall):
+                    return False
+            
+            for other_battery in self.batteries:
+                if battery_rect.colliderect(other_battery):
+                    return False
+            
+            self.batteries.append(battery_rect)
+            return True
 
     def update(self, player):
         # Обновление врагов через менеджер
@@ -112,6 +205,10 @@ class Level1:
             if player.rect.colliderect(battery):
                 player.flashlight.battery = min(100, player.flashlight.battery + BATTERY_CHARGE)
                 self.batteries.remove(battery)
+                
+                # Шанс появления новой батарейки в другом месте (30%)
+                if random.random() < 0.3:
+                    self.add_battery()
                 
         # Проверка достижения выхода
         if player.rect.colliderect(self.exit):
