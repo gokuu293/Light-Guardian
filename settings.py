@@ -13,7 +13,7 @@ DUNGEON_FLOOR = (50, 45, 40)  # Цвет пола подземелья
 
 # Игрок
 PLAYER_SPEED = 4
-PLAYER_SIZE = 20
+PLAYER_SIZE = 30
 
 # Фонарик
 LIGHT_RADIUS = 200
@@ -24,7 +24,7 @@ LIGHT_DRAIN = 0.1
 WALL_THICKNESS = 20  # Толщина внешних стен
 
 # Общие настройки врагов
-ENEMY_SIZE = 25
+ENEMY_SIZE = 35
 ENEMY_DETECTION_RADIUS = 250
 ENEMY_CHASE_LIMIT = 350
 

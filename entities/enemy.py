@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 class Enemy(ABC):
     """Базовый абстрактный класс для всех врагов"""
     
-    def __init__(self, x, y, size, speed, color):
+    def __init__(self, x, y, size, speed, color, sprite_path=None):
         self.rect = pygame.Rect(x, y, size, size)
         self.speed = speed
         self.color = color
@@ -17,6 +17,21 @@ class Enemy(ABC):
         self.idle_duration = random.randint(60, 120)  # 1-2 секунды при 60 FPS
         self.effect_timer = 0
         self.visible = True
+        
+        # Загружаем спрайт, если путь предоставлен, с увеличенным размером
+        self.sprite = None
+        self.sprite_offset_x = 0
+        self.sprite_offset_y = 0
+        
+        if sprite_path:
+            self.sprite = pygame.image.load(sprite_path).convert_alpha()
+            # Увеличиваем размер спрайта (в 1.8 раза больше базового размера врага)
+            sprite_size = int(size * 1.8)
+            self.sprite = pygame.transform.scale(self.sprite, (sprite_size, sprite_size))
+            
+            # Сохраняем смещение для центрирования спрайта
+            self.sprite_offset_x = (sprite_size - size) // 2
+            self.sprite_offset_y = (sprite_size - size) // 2
         
     def update(self, player, level, flashlight_on):
         """Обновление состояния врага"""
@@ -181,22 +196,42 @@ class Enemy(ABC):
         if (enemy_rect.right >= 0 and enemy_rect.left <= SCREEN_WIDTH and 
             enemy_rect.bottom >= 0 and enemy_rect.top <= SCREEN_HEIGHT):
             
-            # Если у врага есть прозрачность (4 компонента в цвете)
-            if len(self.color) == 4:
-                # Создаем поверхность с прозрачностью
-                s = pygame.Surface((enemy_rect.width, enemy_rect.height), pygame.SRCALPHA)
-                pygame.draw.rect(s, self.color, (0, 0, enemy_rect.width, enemy_rect.height))
-                screen.blit(s, (enemy_rect.x, enemy_rect.y))
+            if self.sprite:
+                # Применяем смещение для центрирования спрайта
+                sprite_rect = pygame.Rect(
+                    enemy_rect.x - self.sprite_offset_x,
+                    enemy_rect.y - self.sprite_offset_y,
+                    enemy_rect.width + self.sprite_offset_x * 2,
+                    enemy_rect.height + self.sprite_offset_y * 2
+                )
+                
+                # Рисуем спрайт с учетом прозрачности
+                if len(self.color) == 4:
+                    # Создаем копию спрайта с нужной прозрачностью
+                    alpha_sprite = self.sprite.copy()
+                    alpha_sprite.set_alpha(self.color[3])
+                    screen.blit(alpha_sprite, sprite_rect)
+                else:
+                    screen.blit(self.sprite, sprite_rect)
             else:
-                # Обычная отрисовка для непрозрачных врагов
-                pygame.draw.rect(screen, self.color, enemy_rect)
+                # Запасной вариант с цветным прямоугольником
+                # Если у врага есть прозрачность (4 компонента в цвете)
+                if len(self.color) == 4:
+                    # Создаем поверхность с прозрачностью
+                    s = pygame.Surface((enemy_rect.width, enemy_rect.height), pygame.SRCALPHA)
+                    pygame.draw.rect(s, self.color, (0, 0, enemy_rect.width, enemy_rect.height))
+                    screen.blit(s, (enemy_rect.x, enemy_rect.y))
+                else:
+                    # Обычная отрисовка для непрозрачных врагов
+                    pygame.draw.rect(screen, self.color, enemy_rect)
 
 
 class ShadowEnemy(Enemy):
     """Теневой враг - исчезает при попадании света"""
     
     def __init__(self, x, y):
-        super().__init__(x, y, ENEMY_SIZE, SHADOW_ENEMY_SPEED, SHADOW_ENEMY_COLOR)
+        super().__init__(x, y, ENEMY_SIZE, SHADOW_ENEMY_SPEED, SHADOW_ENEMY_COLOR, 
+                         "assets/sprites/enemy/tile_0121.png")
     
     def on_light_hit(self):
         """При попадании света начинает исчезать"""
@@ -211,7 +246,8 @@ class GhostEnemy(Enemy):
     def __init__(self, x, y):
         super().__init__(x, y, ENEMY_SIZE, GHOST_ENEMY_SPEED, 
                         (GHOST_ENEMY_COLOR[0], GHOST_ENEMY_COLOR[1], 
-                         GHOST_ENEMY_COLOR[2], GHOST_ENEMY_COLOR[3]))
+                         GHOST_ENEMY_COLOR[2], GHOST_ENEMY_COLOR[3]), 
+                         "assets/sprites/enemy/tile_0108.png")
         self.normal_speed = GHOST_ENEMY_SPEED
         self.light_speed = GHOST_ENEMY_LIGHT_SPEED
     

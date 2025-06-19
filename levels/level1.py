@@ -46,6 +46,13 @@ class Level1:
         # Выход с уровня (центр финальной комнаты)
         self.exit = self._create_exit()
     
+        # Загрузка спрайтов для игровых объектов
+        self.battery_sprite = None
+        self.exit_sprites = []  # Список для кадров анимации портала
+        self.exit_frame = 0     # Текущий кадр анимации
+        self.exit_animation_timer = 0  # Таймер для управления скоростью анимации
+        self._load_sprites()
+    
     def _fill_map_with_walls(self):
         """Заполняет всю карту стенами (сплошным камнем)"""
         # Размер блока стены
@@ -474,6 +481,12 @@ class Level1:
         if player.rect.colliderect(self.exit):
             return "level_complete"
             
+        # Обновление анимации портала
+        self.exit_animation_timer += 1
+        if self.exit_animation_timer >= 10:  # Меняем кадр каждые 10 обновлений (примерно 6 кадров в секунду при 60 FPS)
+            self.exit_animation_timer = 0
+            self.exit_frame = (self.exit_frame + 1) % len(self.exit_sprites)
+        
         return None
 
     def draw(self, screen, camera):
@@ -493,16 +506,40 @@ class Level1:
             battery_rect = camera.apply(battery)
             if (battery_rect.right >= 0 and battery_rect.left <= SCREEN_WIDTH and 
                 battery_rect.bottom >= 0 and battery_rect.top <= SCREEN_HEIGHT):
-                pygame.draw.rect(screen, (0, 255, 0), battery_rect)
+                if self.battery_sprite:
+                    # Применяем смещение для центрирования
+                    sprite_rect = pygame.Rect(
+                        battery_rect.x - self.battery_offset,
+                        battery_rect.y - self.battery_offset,
+                        battery_rect.width + self.battery_offset * 2,
+                        battery_rect.height + self.battery_offset * 2
+                    )
+                    screen.blit(self.battery_sprite, sprite_rect)
+                else:
+                    pygame.draw.rect(screen, (0, 255, 0), battery_rect)
         
         # Отрисовка врагов через менеджер
         self.enemy_manager.draw(screen, camera)
         
-        # Выход
+        # Выход с анимацией
         exit_rect = camera.apply(self.exit)
         if (exit_rect.right >= 0 and exit_rect.left <= SCREEN_WIDTH and 
             exit_rect.bottom >= 0 and exit_rect.top <= SCREEN_HEIGHT):
-            pygame.draw.rect(screen, (255, 0, 0), exit_rect)
+            if self.exit_sprites:
+                # Выбираем текущий кадр анимации
+                current_sprite = self.exit_sprites[self.exit_frame]
+                
+                # Применяем смещение для центрирования
+                sprite_rect = pygame.Rect(
+                    exit_rect.x - self.exit_offset,
+                    exit_rect.y - self.exit_offset,
+                    exit_rect.width + self.exit_offset * 2,
+                    exit_rect.height + self.exit_offset * 2
+                )
+                
+                screen.blit(current_sprite, sprite_rect)
+            else:
+                pygame.draw.rect(screen, (255, 0, 0), exit_rect)
 
     def _ensure_path_exists(self):
         """Проверяет, что между всеми комнатами есть проход, и добавляет коридоры при необходимости"""
@@ -571,3 +608,31 @@ class Level1:
                             connected_rooms[room].append(closest_room)
                         if room not in connected_rooms[closest_room]:
                             connected_rooms[closest_room].append(room)
+
+    def _load_sprites(self):
+        """Загружает спрайты для игровых объектов"""
+        try:
+            # Загружаем спрайт батарейки
+            self.battery_sprite = pygame.image.load("assets/sprites/items/battery.png").convert_alpha()
+            
+            # Увеличиваем размер батарейки (в 1.5 раза)
+            battery_size = int(BATTERY_SIZE * 1.5)
+            self.battery_sprite = pygame.transform.scale(self.battery_sprite, (battery_size, battery_size))
+            self.battery_offset = (battery_size - BATTERY_SIZE) // 2
+            
+            # Загружаем кадры анимации портала
+            portal1 = pygame.image.load("assets/sprites/items/portalRings1.png").convert_alpha()
+            portal2 = pygame.image.load("assets/sprites/items/portalRings2.png").convert_alpha()
+            
+            # Увеличиваем размер портала (в 2 раза)
+            exit_size = EXIT_SIZE * 2
+            portal1 = pygame.transform.scale(portal1, (exit_size, exit_size))
+            portal2 = pygame.transform.scale(portal2, (exit_size, exit_size))
+            
+            self.exit_sprites = [portal1, portal2]
+            self.exit_offset = (exit_size - EXIT_SIZE) // 2
+            
+        except Exception as e:
+            print(f"Ошибка загрузки спрайтов: {e}")
+            self.battery_sprite = None
+            self.exit_sprites = []
