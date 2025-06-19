@@ -1,7 +1,9 @@
 import pygame
 import random
+import math
 from settings import *
 from utils.enemy_manager import EnemyManager
+from levels.room import Room
 
 
 class Level1:
@@ -10,189 +12,447 @@ class Level1:
         self.width = MAP_WIDTH
         self.height = MAP_HEIGHT
         
-        # Внешние стены
-        self.walls = [
-            # Внешние границы
-            pygame.Rect(0, 0, self.width, WALL_THICKNESS),  # Верх
-            pygame.Rect(0, 0, WALL_THICKNESS, self.height),  # Лево
-            pygame.Rect(0, self.height-WALL_THICKNESS, self.width, WALL_THICKNESS),  # Низ
-            pygame.Rect(self.width-WALL_THICKNESS, 0, WALL_THICKNESS, self.height),  # Право
-        ]
+        # Комнаты и коридоры
+        self.rooms = []
+        self.corridors = []
         
-        # Добавляем стены для создания подземелья
-        self._create_dungeon_walls()
+        # Все стены (включая стены комнат и коридоров)
+        self.walls = []
+        
+        # Заполняем всю карту стенами (сплошным камнем)
+        self._fill_map_with_walls()
+        
+        # Генерируем структуру уровня - вырезаем комнаты из сплошного камня
+        self._generate_rooms()
+        self._connect_rooms()
+        
+        # Проверяем, что все комнаты связаны и исправляем при необходимости
+        self._ensure_path_exists()
+        
+        # Собираем все стены из комнат и коридоров
+        self._collect_walls()
         
         # Батарейки для пополнения заряда
         self.batteries = []
-        self._spawn_batteries(8)  # Создаем 8 батареек в безопасных местах
+        self._collect_batteries()
         
         # Менеджер врагов
         self.enemy_manager = EnemyManager()
+        self._setup_enemies()
         
-        # Выход с уровня
-        self.exit = pygame.Rect(self.width-100, self.height-100, EXIT_SIZE, EXIT_SIZE)
+        # Позиция старта игрока (центр стартовой комнаты)
+        self.start_position = self._get_start_position()
+        
+        # Выход с уровня (центр финальной комнаты)
+        self.exit = self._create_exit()
     
-    def _create_dungeon_walls(self):
-        # Основные коридоры и комнаты подземелья
+    def _fill_map_with_walls(self):
+        """Заполняет всю карту стенами (сплошным камнем)"""
+        # Размер блока стены
+        block_size = 50
         
-        # Центральный зал
-        central_hall = pygame.Rect(800, 500, 400, 300)
-        
-        # Коридоры
-        corridors = [
-            # Горизонтальные коридоры
-            pygame.Rect(300, 300, 500, WALL_THICKNESS*2),
-            pygame.Rect(1200, 600, 600, WALL_THICKNESS*2),
-            pygame.Rect(600, 900, 800, WALL_THICKNESS*2),
-            
-            # Вертикальные коридоры
-            pygame.Rect(500, 300, WALL_THICKNESS*2, 600),
-            pygame.Rect(1000, 200, WALL_THICKNESS*2, 700),
-            pygame.Rect(1500, 400, WALL_THICKNESS*2, 500),
-        ]
-        
-        # Комнаты
-        rooms = [
-            # Верхние комнаты
-            pygame.Rect(300, 100, 200, 200),
-            pygame.Rect(700, 150, 250, 150),
-            pygame.Rect(1200, 200, 300, 200),
-            pygame.Rect(1800, 100, 350, 250),
-            
-            # Нижние комнаты
-            pygame.Rect(200, 700, 250, 200),
-            pygame.Rect(1300, 800, 200, 300),
-            pygame.Rect(1800, 700, 400, 200),
-        ]
-        
-        # Создаем стены для комнат и коридоров
-        for room in rooms:
-            # Верхняя стена
-            self.walls.append(pygame.Rect(room.x, room.y, room.width, WALL_THICKNESS))
-            # Левая стена
-            self.walls.append(pygame.Rect(room.x, room.y, WALL_THICKNESS, room.height))
-            # Правая стена
-            self.walls.append(pygame.Rect(room.x + room.width - WALL_THICKNESS, room.y, WALL_THICKNESS, room.height))
-            # Нижняя стена
-            self.walls.append(pygame.Rect(room.x, room.y + room.height - WALL_THICKNESS, room.width, WALL_THICKNESS))
-        
-        # Добавляем случайные колонны и препятствия
-        for _ in range(20):
-            x = random.randint(100, self.width - 100)
-            y = random.randint(100, self.height - 100)
-            size = random.randint(30, 80)
-            
-            # Проверяем, не перекрывает ли новое препятствие существующие стены
-            new_obstacle = pygame.Rect(x, y, size, size)
-            overlap = False
-            for wall in self.walls:
-                if new_obstacle.colliderect(wall):
-                    overlap = True
-                    break
-            
-            if not overlap:
-                self.walls.append(new_obstacle)
+        # Создаем сетку стен, заполняющую всю карту
+        self.solid_walls = []
+        for x in range(0, self.width, block_size):
+            for y in range(0, self.height, block_size):
+                # Внешний край карты делаем толще
+                if (x < WALL_THICKNESS or x > self.width - WALL_THICKNESS - block_size or 
+                    y < WALL_THICKNESS or y > self.height - WALL_THICKNESS - block_size):
+                    self.solid_walls.append(pygame.Rect(x, y, block_size, block_size))
+                else:
+                    # Внутренние стены с вероятностью 90% (было 95%)
+                    # Это создаст немного более просторные "естественные пещеры" среди стен
+                    if random.random() < 0.90:
+                        self.solid_walls.append(pygame.Rect(x, y, block_size, block_size))
     
-    def _spawn_batteries(self, count):
-        """Создает батарейки в местах, где нет стен"""
-        batteries_created = 0
+    def _generate_rooms(self):
+        """Генерирует комнаты разных типов с увеличенным размером"""
+        # Сетка для размещения комнат
+        grid_cols = 3
+        grid_rows = 3
+        cell_width = self.width // grid_cols
+        cell_height = self.height // grid_rows
         
-        # Предопределенные безопасные позиции для первых нескольких батареек
-        safe_positions = [
-            (350, 150),
-            (600, 450),
-            (800, 200),
-            (1200, 300),
-        ]
+        # Типы комнат для различных позиций
+        room_types = {
+            (0, 0): "start",  # Левый верхний угол - стартовая комната
+            (grid_cols-1, grid_rows-1): "exit"  # Правый нижний угол - комната с выходом
+        }
         
-        # Сначала размещаем батарейки в предопределенных позициях
-        for pos in safe_positions:
-            x, y = pos
-            battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
-            
-            # Проверяем, не перекрывает ли батарейка стены
-            collision = False
-            for wall in self.walls:
-                if battery_rect.colliderect(wall):
-                    collision = True
-                    break
-            
-            if not collision:
-                self.batteries.append(battery_rect)
-                batteries_created += 1
+        # Комнаты, которые обязательно должны быть включены
+        must_have_cells = [(0, 0), (grid_cols-1, grid_rows-1)]
+        
+        # Для каждой ячейки создаем одну комнату
+        for i in range(grid_cols):
+            for j in range(grid_rows):
+                # Пропускаем некоторые комнаты для разнообразия, если они не обязательные
+                if (i, j) not in must_have_cells and random.random() < 0.2:
+                    continue
+                    
+                # Определяем тип комнаты
+                room_type = room_types.get((i, j), "normal")
                 
-            if batteries_created >= count:
-                return
+                # С вероятностью 25% обычная комната может стать сложной
+                if room_type == "normal" and random.random() < 0.25:
+                    room_type = "difficult"
+                
+                # Увеличенные размеры комнат - делаем их больше, но сохраняя лабиринтную структуру
+                if room_type == "start":
+                    width = int(cell_width * 0.75)  # Было 0.6
+                    height = int(cell_height * 0.75)  # Было 0.6
+                elif room_type == "exit":
+                    width = int(cell_width * 0.70)  # Было 0.55
+                    height = int(cell_height * 0.70)  # Было 0.55
+                else:
+                    width = int(cell_width * random.uniform(0.60, 0.80))  # Было 0.45, 0.65
+                    height = int(cell_height * random.uniform(0.60, 0.80))  # Было 0.45, 0.65
+                
+                # Координаты комнаты (с отступом от краев ячейки для коридоров)
+                padding_x = (cell_width - width) // 2
+                padding_y = (cell_height - height) // 2
+                x = i * cell_width + padding_x
+                y = j * cell_height + padding_y
+                
+                # Создаем комнату
+                room = Room(x, y, width, height, room_type)
+                self.rooms.append(room)
+                
+                # Добавляем батарейки в комнату
+                if room_type == "start":
+                    room.add_battery(1)  # Одна батарейка в стартовой комнате
+                elif room_type == "difficult":
+                    room.add_battery(2)  # Две батарейки в сложной комнате
+                elif room_type == "normal":
+                    room.add_battery(1 if random.random() < 0.7 else 0)  # 70% шанс батарейки
         
-        # Если нужно больше батареек, создаем их в случайных местах
-        max_attempts = 100  # Максимальное количество попыток найти подходящее место
+        # Вырезаем комнаты из сплошных стен
+        self._carve_rooms_from_walls()
+    
+    def _carve_rooms_from_walls(self):
+        """Вырезает комнаты из сплошного камня"""
+        # Для каждой комнаты убираем все стены, которые находятся внутри неё
+        for room in self.rooms:
+            # Создаем немного увеличенный прямоугольник комнаты для надежности
+            carve_rect = pygame.Rect(
+                room.rect.x - 5, 
+                room.rect.y - 5, 
+                room.rect.width + 10, 
+                room.rect.height + 10
+            )
+            
+            # Удаляем стены внутри комнаты
+            self.solid_walls = [wall for wall in self.solid_walls 
+                              if not carve_rect.contains(wall)]
+    
+    def _connect_rooms(self):
+        """Соединяет комнаты коридорами, вырезая проходы в сплошном камне"""
+        if not self.rooms:
+            return
+            
+        # Создаем граф соединений между комнатами (минимальное остовное дерево)
+        connected = set()
+        start_room = next((room for room in self.rooms if room.type == "start"), self.rooms[0])
+        connected.add(start_room)
         
-        while batteries_created < count and max_attempts > 0:
-            x = random.randint(100, self.width - 100)
-            y = random.randint(100, self.height - 100)
-            battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
+        # Пока не все комнаты соединены
+        while len(connected) < len(self.rooms):
+            best_connection = None
+            shortest_distance = float('inf')
             
-            # Проверяем коллизии со стенами
-            collision = False
-            for wall in self.walls:
-                if battery_rect.colliderect(wall):
-                    collision = True
-                    break
+            # Ищем ближайшую несоединенную комнату к любой соединенной
+            for room1 in connected:
+                for room2 in self.rooms:
+                    if room2 in connected:
+                        continue
+                    
+                    # Считаем расстояние между центрами комнат
+                    distance = ((room1.rect.centerx - room2.rect.centerx) ** 2 + 
+                                (room1.rect.centery - room2.rect.centery) ** 2) ** 0.5
+                    
+                    if distance < shortest_distance:
+                        shortest_distance = distance
+                        best_connection = (room1, room2)
             
-            # Проверяем коллизии с другими батарейками (чтобы не накладывались)
-            if not collision:
-                for other_battery in self.batteries:
-                    if battery_rect.colliderect(other_battery):
-                        collision = True
-                        break
-            
-            if not collision:
-                self.batteries.append(battery_rect)
-                batteries_created += 1
+            if best_connection:
+                # Создаем коридор и вырезаем его из сплошных стен
+                self._create_corridor(*best_connection)
+                connected.add(best_connection[1])
+        
+        # Добавляем несколько дополнительных коридоров для циклов (чтобы было несколько путей)
+        for _ in range(2):  # Добавляем 2 случайных дополнительных коридора
+            # Выбираем две случайные комнаты
+            if len(self.rooms) >= 2:
+                room1, room2 = random.sample(self.rooms, 2)
+                # Если это не одна и та же комната и они не соединены напрямую
+                if room1 != room2:
+                    self._create_corridor(room1, room2)
+    
+    def _create_corridor(self, room1, room2):
+        """Создает коридор между двумя комнатами, вырезая проход в сплошном камне"""
+        # Определяем начальную и конечную точки коридора (центры комнат)
+        start_x, start_y = room1.rect.center
+        end_x, end_y = room2.rect.center
+        
+        # Добавляем коридор в список
+        corridor_rect = self._create_corridor_rect(start_x, start_y, end_x, end_y)
+        self.corridors.append(corridor_rect)
+        
+        # Вырезаем коридор из сплошных стен
+        self._carve_corridor_from_walls(corridor_rect)
+        
+        # Добавляем двери в комнаты (для визуального эффекта)
+        if abs(start_x - end_x) > abs(start_y - end_y):
+            # Горизонтальный коридор
+            if start_x < end_x:
+                room1.add_door("right")
+                room2.add_door("left")
             else:
-                max_attempts -= 1
+                room1.add_door("left")
+                room2.add_door("right")
+        else:
+            # Вертикальный коридор
+            if start_y < end_y:
+                room1.add_door("bottom")
+                room2.add_door("top")
+            else:
+                room1.add_door("top")
+                room2.add_door("bottom")
+                
+        return True
+    
+    def _create_corridor_rect(self, start_x, start_y, end_x, end_y):
+        """Создает прямоугольник коридора с поворотом под прямым углом"""
+        corridor_width = 80  # Было 60, увеличиваем ширину коридора
+        
+        # Определяем, будет ли поворот сначала по горизонтали, затем по вертикали,
+        # или наоборот (случайно, для разнообразия)
+        if random.random() < 0.5:
+            # Сначала горизонтальный участок, затем вертикальный
+            bend_x = end_x
+            bend_y = start_y
+        else:
+            # Сначала вертикальный участок, затем горизонтальный
+            bend_x = start_x
+            bend_y = end_y
+            
+        # Создаем два участка коридора
+        if abs(start_x - bend_x) > abs(start_y - bend_y):
+            # Первый участок горизонтальный
+            section1 = pygame.Rect(
+                min(start_x, bend_x) - corridor_width//2,
+                start_y - corridor_width//2,
+                abs(start_x - bend_x) + corridor_width,
+                corridor_width
+            )
+            # Второй участок вертикальный
+            section2 = pygame.Rect(
+                bend_x - corridor_width//2,
+                min(bend_y, end_y) - corridor_width//2,
+                corridor_width,
+                abs(bend_y - end_y) + corridor_width
+            )
+        else:
+            # Первый участок вертикальный
+            section1 = pygame.Rect(
+                start_x - corridor_width//2,
+                min(start_y, bend_y) - corridor_width//2,
+                corridor_width,
+                abs(start_y - bend_y) + corridor_width
+            )
+            # Второй участок горизонтальный
+            section2 = pygame.Rect(
+                min(bend_x, end_x) - corridor_width//2,
+                bend_y - corridor_width//2,
+                abs(bend_x - end_x) + corridor_width,
+                corridor_width
+            )
+            
+        # Объединяем два участка в один прямоугольник
+        combined_rect = section1.union(section2)
+        return combined_rect
+    
+    def _carve_corridor_from_walls(self, corridor_rect):
+        """Вырезает коридор из сплошных стен"""
+        # Удаляем все стены, которые перекрываются с коридором
+        self.solid_walls = [wall for wall in self.solid_walls
+                           if not corridor_rect.contains(wall) and not wall.colliderect(corridor_rect)]
+    
+    def _collect_walls(self):
+        """Собирает все стены для обработки коллизий"""
+        # Сначала добавляем внешние стены карты
+        self.walls = [
+            # Верхняя граница
+            pygame.Rect(0, 0, self.width, WALL_THICKNESS),
+            # Левая граница
+            pygame.Rect(0, 0, WALL_THICKNESS, self.height),
+            # Нижняя граница
+            pygame.Rect(0, self.height - WALL_THICKNESS, self.width, WALL_THICKNESS),
+            # Правая граница
+            pygame.Rect(self.width - WALL_THICKNESS, 0, WALL_THICKNESS, self.height)
+        ]
+        
+        # Добавляем все оставшиеся сплошные стены
+        self.walls.extend(self.solid_walls)
+        
+        # Добавляем препятствия внутри комнат
+        for room in self.rooms:
+            for obstacle in room.obstacles:
+                self.walls.append(obstacle)
+    
+    def _collect_batteries(self):
+        """Собирает все батарейки из комнат"""
+        self.batteries = []  # Сначала очищаем список
+        for room in self.rooms:
+            self.batteries.extend(room.batteries)
+    
+    def _setup_enemies(self):
+        """Настраивает спавн врагов в комнатах с проверкой валидности точек спавна"""
+        # Очищаем список точек спавна
+        spawn_points = []
+        
+        for room in self.rooms:
+            # Не размещаем врагов в стартовой и финальной комнатах
+            if room.type == "start" or room.type == "exit":
+                continue
+            
+            # Фильтруем точки спавна, удаляя те, что находятся в стенах
+            valid_spawn_points = []
+            for x, y in room.enemy_spawn_points:
+                # Создаем увеличенный прямоугольник для более надежной проверки
+                enemy_rect = pygame.Rect(
+                    x - ENEMY_SIZE/2 - 5,  # Дополнительное пространство для безопасности
+                    y - ENEMY_SIZE/2 - 5, 
+                    ENEMY_SIZE + 10, 
+                    ENEMY_SIZE + 10
+                )
+                
+                # Проверяем коллизии со ВСЕМИ стенами уровня
+                if not any(enemy_rect.colliderect(wall) for wall in self.walls):
+                    # Также проверяем, не находится ли точка спавна внутри припятствий других комнат
+                    in_other_room_obstacle = False
+                    for other_room in self.rooms:
+                        if other_room != room:
+                            for obstacle in other_room.obstacles:
+                                if enemy_rect.colliderect(obstacle):
+                                    in_other_room_obstacle = True
+                                    break
+                            if in_other_room_obstacle:
+                                break
+                    
+                    if not in_other_room_obstacle:
+                        valid_spawn_points.append((x, y))
+            
+            # Устанавливаем интервалы очков спавна внутри комнат
+            if valid_spawn_points:
+                # В сложных комнатах больше врагов
+                if room.type == "difficult":
+                    spawn_count = min(3, len(valid_spawn_points))
+                    if spawn_count > 0:
+                        selected_points = random.sample(valid_spawn_points, spawn_count)
+                        spawn_points.extend(selected_points)
+                # В обычных комнатах врагов меньше
+                elif room.type == "normal":
+                    spawn_count = min(1, len(valid_spawn_points))
+                    if spawn_count > 0:
+                        selected_points = random.sample(valid_spawn_points, spawn_count)
+                        spawn_points.extend(selected_points)
+        
+        # Передаем очищенный список точек спавна менеджеру врагов
+        self.enemy_manager.spawn_points = spawn_points
+    
+    def _get_start_position(self):
+        """Возвращает начальную позицию игрока (центр стартовой комнаты)"""
+        start_room = next((room for room in self.rooms if room.type == "start"), None)
+        if start_room:
+            # Возвращаем центр комнаты, что гарантирует, что игрок не начнет в стене
+            return start_room.get_center()
+        return (100, 100)  # Запасная позиция
+    
+    def _create_exit(self):
+        """Создает выход в комнате типа 'exit', гарантируя, что он не в стене"""
+        exit_room = next((room for room in self.rooms if room.type == "exit"), None)
+        if exit_room:
+            # Создаем выход в центре комнаты, но с проверкой на коллизии
+            center_x, center_y = exit_room.get_center()
+            
+            # Проверяем, что центр комнаты не перекрывается со стенами
+            exit_rect = pygame.Rect(
+                center_x - EXIT_SIZE // 2, 
+                center_y - EXIT_SIZE // 2,
+                EXIT_SIZE, EXIT_SIZE
+            )
+            
+            # Если выход в стене, ищем безопасное место в комнате
+            if any(exit_rect.colliderect(wall) for wall in self.walls):
+                # Пробуем несколько позиций внутри комнаты
+                for offset_x in range(-50, 51, 25):
+                    for offset_y in range(-50, 51, 25):
+                        test_x = center_x + offset_x
+                        test_y = center_y + offset_y
+                        
+                        if exit_room.rect.collidepoint(test_x, test_y):
+                            test_rect = pygame.Rect(
+                                test_x - EXIT_SIZE // 2, 
+                                test_y - EXIT_SIZE // 2,
+                                EXIT_SIZE, EXIT_SIZE
+                            )
+                            
+                            if not any(test_rect.colliderect(wall) for wall in self.walls):
+                                return test_rect
+                
+                # Если не нашли безопасное место, создаем безопасную зону
+                safe_area = pygame.Rect(
+                    center_x - EXIT_SIZE, 
+                    center_y - EXIT_SIZE,
+                    EXIT_SIZE * 2, EXIT_SIZE * 2
+                )
+                
+                # Удаляем все стены в области выхода
+                self.walls = [wall for wall in self.walls if not safe_area.colliderect(wall)]
+                
+                # Возвращаем исходную позицию выхода, которая теперь безопасна
+                return exit_rect
+            
+            return exit_rect
+        
+        # Запасной вариант
+        return pygame.Rect(self.width-100, self.height-100, EXIT_SIZE, EXIT_SIZE)
     
     def add_battery(self, x=None, y=None):
-        """Добавляет новую батарейку в указанной позиции или в случайном месте"""
+        """Добавляет новую батарейку в указанной позиции или в случайной комнате"""
         if x is None or y is None:
-            # Случайное размещение
-            for _ in range(50):  # Максимум 50 попыток
-                x = random.randint(100, self.width - 100)
-                y = random.randint(100, self.height - 100)
-                battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
-                
-                # Проверяем коллизии
-                collision = False
-                for wall in self.walls:
-                    if battery_rect.colliderect(wall):
-                        collision = True
-                        break
-                
-                if not collision:
-                    for other_battery in self.batteries:
-                        if battery_rect.colliderect(other_battery):
-                            collision = True
-                            break
-                
-                if not collision:
-                    self.batteries.append(battery_rect)
-                    return True
+            # Выбираем случайную комнату типа "normal" или "difficult"
+            eligible_rooms = [r for r in self.rooms if r.type in ["normal", "difficult"]]
+            if eligible_rooms:
+                room = random.choice(eligible_rooms)
+                room.add_battery(1)
+                self._collect_batteries()  # Обновляем общий список батареек
+                return True
             return False
         else:
-            # Размещение в указанной позиции
+            # Проверяем, находится ли позиция внутри какой-либо комнаты
             battery_rect = pygame.Rect(x, y, BATTERY_SIZE, BATTERY_SIZE)
             
-            # Проверяем коллизии
-            for wall in self.walls:
-                if battery_rect.colliderect(wall):
-                    return False
+            for room in self.rooms:
+                if room.rect.contains(battery_rect):
+                    # Проверяем коллизии со стенами и объектами
+                    collision = False
+                    for wall in self.walls:
+                        if battery_rect.colliderect(wall):
+                            collision = True
+                            break
+                    
+                    if not collision:
+                        for other_battery in self.batteries:
+                            if battery_rect.colliderect(other_battery):
+                                collision = True
+                                break
+                    
+                    if not collision:
+                        self.batteries.append(battery_rect)
+                        return True
             
-            for other_battery in self.batteries:
-                if battery_rect.colliderect(other_battery):
-                    return False
-            
-            self.batteries.append(battery_rect)
-            return True
+            return False
 
     def update(self, player):
         # Обновление врагов через менеджер
@@ -243,3 +503,71 @@ class Level1:
         if (exit_rect.right >= 0 and exit_rect.left <= SCREEN_WIDTH and 
             exit_rect.bottom >= 0 and exit_rect.top <= SCREEN_HEIGHT):
             pygame.draw.rect(screen, (255, 0, 0), exit_rect)
+
+    def _ensure_path_exists(self):
+        """Проверяет, что между всеми комнатами есть проход, и добавляет коридоры при необходимости"""
+        # Создаем граф соединений между комнатами
+        connected_rooms = {}
+        for room in self.rooms:
+            connected_rooms[room] = []
+        
+        # Проверяем, какие комнаты соединены
+        for corridor in self.corridors:
+            rooms_connected = []
+            for room in self.rooms:
+                # Проверяем, соединяется ли коридор с комнатой
+                if any(door["rect"].colliderect(corridor) for door in room.doors):
+                    rooms_connected.append(room)
+            
+            # Если коридор соединяет две комнаты, добавляем их в граф
+            if len(rooms_connected) >= 2:
+                for i in range(len(rooms_connected)):
+                    for j in range(i+1, len(rooms_connected)):
+                        if rooms_connected[j] not in connected_rooms[rooms_connected[i]]:
+                            connected_rooms[rooms_connected[i]].append(rooms_connected[j])
+                        if rooms_connected[i] not in connected_rooms[rooms_connected[j]]:
+                            connected_rooms[rooms_connected[j]].append(rooms_connected[i])
+        
+        # Проверяем достижимость всех комнат из стартовой комнаты
+        start_room = next((room for room in self.rooms if room.type == "start"), None)
+        if not start_room:
+            return  # Если нет стартовой комнаты, ничего не делаем
+        
+        # Проверка с помощью BFS
+        visited = {room: False for room in self.rooms}
+        queue = [start_room]
+        visited[start_room] = True
+        
+        while queue:
+            current_room = queue.pop(0)
+            for neighbor in connected_rooms[current_room]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    queue.append(neighbor)
+        
+        # Проверяем, есть ли недоступные комнаты
+        for room, is_visited in visited.items():
+            if not is_visited:
+                # Комната недоступна, соединяем её с ближайшей доступной
+                closest_room = None
+                min_distance = float('inf')
+                
+                for connected_room in self.rooms:
+                    if visited[connected_room]:
+                        distance = ((room.rect.centerx - connected_room.rect.centerx) ** 2 +
+                                    (room.rect.centery - connected_room.rect.centery) ** 2) ** 0.5
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_room = connected_room
+                
+                # Создаем коридор между недоступной комнатой и ближайшей доступной
+                if closest_room:
+                    success = self._create_corridor(room, closest_room)
+                    # Если успешно создали коридор, отмечаем комнату как посещенную
+                    if success:
+                        visited[room] = True
+                        # Добавляем связи в граф
+                        if closest_room not in connected_rooms[room]:
+                            connected_rooms[room].append(closest_room)
+                        if room not in connected_rooms[closest_room]:
+                            connected_rooms[closest_room].append(room)

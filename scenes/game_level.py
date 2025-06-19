@@ -7,8 +7,10 @@ from levels.level1 import Level1
 
 class GameLevel:
     def __init__(self):
-        self.player = Player()
         self.level = Level1()
+        # Создаем игрока в стартовой позиции уровня
+        start_x, start_y = self.level.start_position
+        self.player = Player(start_x, start_y)
         self.camera = Camera()
         self.camera.set_target(self.player)
         self.font = pygame.font.SysFont('Arial', 24)
@@ -93,4 +95,4 @@ class GameLevel:
         if FULLSCREEN:
             pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
         else:
-            pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT)) 
+            pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))

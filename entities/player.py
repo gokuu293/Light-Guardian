@@ -4,8 +4,8 @@ from entities.lighting import Flashlight
 
 
 class Player:
-    def __init__(self):
-        self.rect = pygame.Rect(100, 100, PLAYER_SIZE, PLAYER_SIZE)
+    def __init__(self, x=100, y=100):
+        self.rect = pygame.Rect(x, y, PLAYER_SIZE, PLAYER_SIZE)
         self.speed = PLAYER_SPEED
         self.flashlight = Flashlight(self.rect.centerx, self.rect.centery)
 
