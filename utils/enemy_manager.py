@@ -7,8 +7,10 @@ from entities.enemy import ShadowEnemy, GhostEnemy
 class EnemyManager:
     """Класс для управления врагами: создание, удаление, обновление с учетом комнатной структуры уровня"""
     
-    def __init__(self):
+    def __init__(self, level=None, sound_manager=None):
+        self.level = level
         self.enemies = []
+        self.sound_manager = sound_manager
         self.shadow_spawn_timer = 0
         self.ghost_spawn_timer = 0
         self.max_shadows = 6  # Увеличиваем максимальное количество теневых врагов
@@ -27,6 +29,11 @@ class EnemyManager:
         # Комнатный контекст - отслеживаем, в какой комнате находится игрок
         self.current_room = None
         self.near_rooms = []  # Комнаты, соединенные с текущей
+        
+        # Добавляем параметры для обработки столкновений с игроком
+        self.player_hit = False
+        self.hit_timer = 0
+        self.hit_delay = 90  # 1.5 секунды при 60 FPS до окончания игры
     
     def update(self, player, level):
         """Обновление всех врагов и управление спавном"""
@@ -38,6 +45,15 @@ class EnemyManager:
             self._initial_spawn(player, level)
             self.initial_spawn_done = True
         
+        # Обрабатываем таймер столкновения если игрок уже был атакован
+        if self.player_hit:
+            self.hit_timer += 1
+            if self.hit_timer >= self.hit_delay:
+                # Время истекло, игра заканчивается
+                return "game_over"
+            # Продолжаем игру до окончания таймера
+            return None
+        
         # Обновляем существующих врагов
         for enemy in self.enemies:
             enemy.update(player, level, player.flashlight.on)
@@ -45,7 +61,10 @@ class EnemyManager:
         # Проверяем столкновения с игроком
         for enemy in self.enemies:
             if enemy.visible and player.rect.colliderect(enemy.rect):
-                return "game_over"
+                # Запускаем процесс получения урона
+                player.take_damage()
+                self.player_hit = True
+                return None  # Пока не заканчиваем игру
         
         # Удаляем невидимых теневых врагов из списка
         self.enemies = [enemy for enemy in self.enemies if not (isinstance(enemy, ShadowEnemy) and not enemy.visible)]
@@ -109,32 +128,44 @@ class EnemyManager:
         # Создаем врагов в сложных комнатах
         for room in difficult_rooms:
             if room.enemy_spawn_points:
-                # Создаем 2-3 теневых врага в каждой сложной комнате (было 1-2)
+                # Создаем 2-3 теневых врага в каждой сложной комнате
                 shadow_count = min(3, len(room.enemy_spawn_points))
                 for i in range(shadow_count):
                     if i < len(room.enemy_spawn_points):
                         x, y = room.enemy_spawn_points[i]
-                        self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                        # Передаем звуковой менеджер
+                        if self.sound_manager:
+                            enemy.sound_manager = self.sound_manager
+                        self.enemies.append(enemy)
                 
-                # Создаем 1-2 призрачных врагов, если осталось место для спавна (было 0-1)
+                # Создаем 1-2 призрачных врагов, если осталось место для спавна
                 if shadow_count < len(room.enemy_spawn_points):
                     ghost_count = min(2, len(room.enemy_spawn_points) - shadow_count)
                     for i in range(ghost_count):
                         x, y = room.enemy_spawn_points[shadow_count + i]
-                        self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                        # Передаем звуковой менеджер
+                        if self.sound_manager:
+                            enemy.sound_manager = self.sound_manager
+                        self.enemies.append(enemy)
         
         # Создаем врагов в обычных комнатах
         for room in normal_rooms:
             if room.enemy_spawn_points:
-                # В обычных комнатах 1-2 врагов (было 0-1)
+                # В обычных комнатах 1-2 врагов
                 spawn_count = min(2, len(room.enemy_spawn_points))
                 for i in range(spawn_count):
                     x, y = room.enemy_spawn_points[i]
                     # Чередуем типы врагов
                     if i % 2 == 0:
-                        self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                     else:
-                        self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                    # Передаем звуковой менеджер
+                    if self.sound_manager:
+                        enemy.sound_manager = self.sound_manager
+                    self.enemies.append(enemy)
         
         # Если всё еще недостаточно врагов, используем старый метод спавна
         min_enemy_count = 6  # Увеличено с 3 до 6
@@ -181,9 +212,15 @@ class EnemyManager:
                 distance = math.sqrt((player.rect.centerx - x)**2 + (player.rect.centery - y)**2)
                 if distance >= self.min_spawn_distance:
                     if enemy_type == "shadow":
-                        self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                     elif enemy_type == "ghost":
-                        self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                    
+                    # Передаем звуковой менеджер врагу
+                    if self.sound_manager:
+                        enemy.sound_manager = self.sound_manager
+                    
+                    self.enemies.append(enemy)
                     return True
         
         # Стратегия 2: Используем предопределенные точки спавна
@@ -205,9 +242,15 @@ class EnemyManager:
             if valid_points:
                 x, y = random.choice(valid_points)
                 if enemy_type == "shadow":
-                    self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                 elif enemy_type == "ghost":
-                    self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                
+                # Передаем звуковой менеджер врагу
+                if self.sound_manager:
+                    enemy.sound_manager = self.sound_manager
+                
+                self.enemies.append(enemy)
                 return True
         
         # Стратегия 3: Запасной вариант - спавн на расстоянии от игрока
@@ -261,9 +304,15 @@ class EnemyManager:
             if not wall_collision:
                 # Создаем врага нужного типа
                 if enemy_type == "shadow":
-                    self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                 elif enemy_type == "ghost":
-                    self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                
+                # Передаем звуковой менеджер врагу
+                if self.sound_manager:
+                    enemy.sound_manager = self.sound_manager
+                
+                self.enemies.append(enemy)
                 return True
         
         # Если не удалось найти подходящее место, используем самый запасной метод
@@ -303,9 +352,15 @@ class EnemyManager:
                 if not wall_collision:
                     # Создаем врага нужного типа
                     if enemy_type == "shadow":
-                        self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                     elif enemy_type == "ghost":
-                        self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                        enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                    
+                    # Передаем звуковой менеджер врагу
+                    if self.sound_manager:
+                        enemy.sound_manager = self.sound_manager
+                    
+                    self.enemies.append(enemy)
                     return True
         
         # Если всё-таки не получилось, пробуем старый метод случайного размещения
@@ -343,9 +398,15 @@ class EnemyManager:
             if not wall_collision:
                 # Создаем врага нужного типа
                 if enemy_type == "shadow":
-                    self.enemies.append(ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = ShadowEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
                 elif enemy_type == "ghost":
-                    self.enemies.append(GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2))
+                    enemy = GhostEnemy(x - ENEMY_SIZE/2, y - ENEMY_SIZE/2)
+                
+                # Передаем звуковой менеджер врагу
+                if self.sound_manager:
+                    enemy.sound_manager = self.sound_manager
+                
+                self.enemies.append(enemy)
                 return True
         
         # Если все попытки не удались, просто возвращаем False

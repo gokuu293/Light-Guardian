@@ -5,7 +5,10 @@ from settings import *
 
 
 class MainMenu:
-    def __init__(self):
+    def __init__(self, sound_manager=None):
+        # Добавляем звуковой менеджер
+        self.sound_manager = sound_manager
+        
         # Загрузка шрифтов
         font_path = os.path.join('assets', 'fonts', 'Nosifer', 'Nosifer-Regular.ttf')
         if os.path.exists(font_path):
@@ -49,16 +52,28 @@ class MainMenu:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
                     self.selected = (self.selected + 1) % len(self.options)
+                    # Воспроизводим звук перемещения по меню
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("menu_change")
                 elif event.key == pygame.K_UP:
                     self.selected = (self.selected - 1) % len(self.options)
+                    # Воспроизводим звук перемещения по меню
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("menu_change")
                 elif event.key == pygame.K_RETURN:
+                    # Воспроизводим звук выбора
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("menu_select")
+                    
                     if self.selected == 0:
                         return "start_game"
                     elif self.selected == 1:
-                        return "controls"  # Новое действие для экрана управления
+                        return "controls"
+                    elif self.selected == 2:  # Settings
+                        return "settings"
                     elif self.selected == 3:
                         return "exit"
-                elif event.key == pygame.K_f:  # Переключение полноэкранного режима
+                elif event.key == pygame.K_f:
                     self._toggle_fullscreen()
         return None
     

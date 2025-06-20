@@ -5,10 +5,17 @@ from entities.lighting import Flashlight
 
 
 class Player:
-    def __init__(self, x=100, y=100):
+    def __init__(self, x=100, y=100, sound_manager=None):
         self.rect = pygame.Rect(x, y, PLAYER_SIZE, PLAYER_SIZE)
         self.speed = PLAYER_SPEED
         self.flashlight = Flashlight(self.rect.centerx, self.rect.centery)
+        
+        # Добавляем звуковой менеджер
+        self.sound_manager = sound_manager
+        
+        # Для воспроизведения звука шагов
+        self.last_footstep_time = 0
+        self.footstep_delay = 350  # миллисекунды между шагами
         
         # Направление движения игрока (для анимации)
         self.direction = "right"  # right, left, up, down
@@ -61,15 +68,24 @@ class Player:
         # Обновление фонарика
         self.flashlight.update(mouse_x, mouse_y, self.rect.centerx, self.rect.centery)
         
-        # Движение игрока
+        # Движение игрока с добавлением звука шагов
         dx, dy = 0, 0
         if keys[pygame.K_w]: dy -= self.speed
         if keys[pygame.K_s]: dy += self.speed
         if keys[pygame.K_a]: dx -= self.speed
         if keys[pygame.K_d]: dx += self.speed
         
-        # Определяем направление движения для анимации
+        # Определяем, движется ли игрок
         self.moving = dx != 0 or dy != 0
+        
+        # Воспроизводим звук шагов если игрок движется
+        if self.moving and self.sound_manager:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.last_footstep_time > self.footstep_delay:
+                self.sound_manager.play_sound("footstep")
+                self.last_footstep_time = current_time
+        
+        # Определяем направление движения для анимации
         if dx > 0:
             self.direction = "right"
         elif dx < 0:
@@ -131,3 +147,18 @@ class Player:
         
         # Отрисовка фонарика с учетом камеры
         self.flashlight.draw(screen, camera, level)
+
+    # Добавляем методы для взаимодействия с батарейками и получения урона
+    def add_battery(self, amount):
+        """Добавляет заряд к фонарику и воспроизводит звук"""
+        self.flashlight.battery = min(100, self.flashlight.battery + amount)
+        # Воспроизводим звук подбора батарейки
+        if self.sound_manager:
+            self.sound_manager.play_sound("battery_pickup")
+    
+    def take_damage(self):
+        """Обработка получения урона"""
+        # Воспроизводим звук получения урона
+        if self.sound_manager:
+            self.sound_manager.play_sound("player_damage")
+        # Можно добавить другие эффекты урона (мигание, уменьшение здоровья и т.д.)

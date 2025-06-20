@@ -49,3 +49,9 @@ MAP_HEIGHT = 1440  # Увеличенный размер карты (в 2 раз
 BATTERY_SIZE = 20
 BATTERY_CHARGE = 25  # Процент заряда от одной батарейки
 EXIT_SIZE = 40
+
+# Настройки звука
+SOUND_ENABLED = True
+MUSIC_ENABLED = True
+SOUND_VOLUME = 0.7  # Громкость звуковых эффектов
+MUSIC_VOLUME = 0.4  # Громкость фоновой музыки

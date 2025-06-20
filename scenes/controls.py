@@ -4,7 +4,10 @@ import random
 from settings import *
 
 class ControlsScene:
-    def __init__(self):
+    def __init__(self, sound_manager=None):
+        # Добавляем звуковой менеджер
+        self.sound_manager = sound_manager
+        
         # Загрузка шрифтов
         font_path = os.path.join('assets', 'fonts', 'Nosifer', 'Nosifer-Regular.ttf')
         if os.path.exists(font_path):
@@ -36,7 +39,10 @@ class ControlsScene:
         for event in events:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_BACKSPACE:
-                    return "back_from_controls"  # Специальный флаг для возврата
+                    # Воспроизводим звук при возврате
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("menu_select")
+                    return "back_from_controls"
         return None
         
     def update(self):

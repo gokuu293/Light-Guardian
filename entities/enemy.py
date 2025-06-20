@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 class Enemy(ABC):
     """Базовый абстрактный класс для всех врагов"""
     
-    def __init__(self, x, y, size, speed, color, sprite_path=None):
+    def __init__(self, x, y, size, speed, color, sprite_path=None, sound_manager=None):
         self.rect = pygame.Rect(x, y, size, size)
         self.speed = speed
         self.color = color
@@ -33,23 +33,47 @@ class Enemy(ABC):
             self.sprite_offset_x = (sprite_size - size) // 2
             self.sprite_offset_y = (sprite_size - size) // 2
         
+        # Добавляем звуковой менеджер
+        self.sound_manager = sound_manager
+        
+        # Флаг для отслеживания обнаружения игрока
+        self.detected_player = False
+        
+        # Флаги для звуковых эффектов при попадании света
+        self._light_hit_played = False
+        self._light_hit_timer = 0
+        
     def update(self, player, level, flashlight_on):
         """Обновление состояния врага"""
         # Проверка, находится ли враг в свете фонарика
         in_light = self.is_in_light(player, level)
         
-        # Обработка эффекта света на врага (переопределяется в подклассах)
+        # Обработка эффекта света на врага
         if in_light and flashlight_on and self.visible:
             self.on_light_hit()
+        else:
+            # Сбрасываем флаг воспроизведения звука, если враг не в свете
+            self._light_hit_played = False
+        
+        # Обновляем таймер звука
+        if getattr(self, '_light_hit_timer', 0) > 0:
+            self._light_hit_timer -= 1
+            if self._light_hit_timer <= 0:
+                self._light_hit_played = False
         
         # Обработка состояний
         self.handle_state(player, level, flashlight_on)
             
     @abstractmethod
     def on_light_hit(self):
-        """Реакция на попадание света (переопределяется в подклассах)"""
-        pass
-    
+        """Базовая реакция на попадание света (воспроизведение звука)"""
+        if self.sound_manager and not getattr(self, '_light_hit_played', False):
+            self.sound_manager.play_sound("light_hit_enemy")
+            # Устанавливаем флаг, чтобы звук не воспроизводился непрерывно
+            self._light_hit_played = True
+            # Сбрасываем флаг через небольшое время
+            self._light_hit_timer = 30  # Полсекунды при 60 FPS
+        
     def handle_state(self, player, level, flashlight_on):
         """Обработка текущего состояния врага"""
         if self.state == "affected_by_light":
@@ -68,9 +92,15 @@ class Enemy(ABC):
                                 (player.rect.centery - self.rect.centery)**2)
             
             if distance < ENEMY_DETECTION_RADIUS and self.visible:
+                # Если до этого не преследовал игрока, издаем звук обнаружения
+                if self.state != "chase" and self.sound_manager and not self.detected_player:
+                    self.sound_manager.play_sound("enemy_detect")
+                    self.detected_player = True
+                
                 self.state = "chase"
             elif self.state == "chase" and distance > ENEMY_CHASE_LIMIT:
                 self.state = "idle"
+                self.detected_player = False
                 
             # Движение в зависимости от состояния
             if self.state == "chase" and self.visible:
@@ -229,36 +259,42 @@ class Enemy(ABC):
 class ShadowEnemy(Enemy):
     """Теневой враг - исчезает при попадании света"""
     
-    def __init__(self, x, y):
+    def __init__(self, x, y, sound_manager=None):
         super().__init__(x, y, ENEMY_SIZE, SHADOW_ENEMY_SPEED, SHADOW_ENEMY_COLOR, 
-                         "assets/sprites/enemy/tile_0121.png")
+                         "assets/sprites/enemy/tile_0121.png", sound_manager)
     
     def on_light_hit(self):
         """При попадании света начинает исчезать"""
+        # Воспроизводим базовый звук попадания света
+        super().on_light_hit()
+        
         if self.state != "fading":
             self.state = "fading"
             self.effect_timer = SHADOW_ENEMY_FADE_TIME
-    
+
 
 class GhostEnemy(Enemy):
     """Призрачный враг - замедляется при попадании света"""
     
-    def __init__(self, x, y):
+    def __init__(self, x, y, sound_manager=None):
         super().__init__(x, y, ENEMY_SIZE, GHOST_ENEMY_SPEED, 
                         (GHOST_ENEMY_COLOR[0], GHOST_ENEMY_COLOR[1], 
                          GHOST_ENEMY_COLOR[2], GHOST_ENEMY_COLOR[3]), 
-                         "assets/sprites/enemy/tile_0108.png")
+                         "assets/sprites/enemy/tile_0108.png", sound_manager)
         self.normal_speed = GHOST_ENEMY_SPEED
         self.light_speed = GHOST_ENEMY_LIGHT_SPEED
     
     def on_light_hit(self):
         """При попадании света замедляется"""
+        # Воспроизводим базовый звук попадания света
+        super().on_light_hit()
+        
         self.state = "affected_by_light"
         self.effect_timer = GHOST_ENEMY_STUN_TIME
         self.speed = self.light_speed
         self.color = (GHOST_ENEMY_STUNNED_COLOR[0], GHOST_ENEMY_STUNNED_COLOR[1],
                       GHOST_ENEMY_STUNNED_COLOR[2], GHOST_ENEMY_STUNNED_COLOR[3])
-    
+  
     def handle_state(self, player, level, flashlight_on):
         """Обработка состояний с восстановлением скорости"""
         super().handle_state(player, level, flashlight_on)

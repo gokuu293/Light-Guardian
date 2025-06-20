@@ -7,7 +7,10 @@ from levels.room import Room
 
 
 class Level1:
-    def __init__(self):
+    def __init__(self, sound_manager=None):
+        # Сохраняем звуковой менеджер
+        self.sound_manager = sound_manager
+        
         # Создаем большую карту подземелья
         self.width = MAP_WIDTH
         self.height = MAP_HEIGHT
@@ -37,7 +40,7 @@ class Level1:
         self._collect_batteries()
         
         # Менеджер врагов
-        self.enemy_manager = EnemyManager()
+        self.enemy_manager = EnemyManager(self, sound_manager)
         self._setup_enemies()
         
         # Позиция старта игрока (центр стартовой комнаты)
@@ -470,15 +473,18 @@ class Level1:
         # Проверка сбора батареек
         for battery in self.batteries[:]:
             if player.rect.colliderect(battery):
-                player.flashlight.battery = min(100, player.flashlight.battery + BATTERY_CHARGE)
+                player.add_battery(BATTERY_CHARGE)
                 self.batteries.remove(battery)
                 
                 # Шанс появления новой батарейки в другом месте (30%)
                 if random.random() < 0.3:
                     self.add_battery()
-                
+        
         # Проверка достижения выхода
         if player.rect.colliderect(self.exit):
+            # Проигрываем звук победы
+            if hasattr(self, 'sound_manager') and self.sound_manager:
+                self.sound_manager.play_sound("level_complete")
             return "level_complete"
             
         # Обновление анимации портала

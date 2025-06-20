@@ -8,11 +8,12 @@ from levels.level1 import Level1
 
 
 class GameLevel:
-    def __init__(self):
-        self.level = Level1()
+    def __init__(self, sound_manager=None):
+        self.sound_manager = sound_manager
+        self.level = Level1(sound_manager)
         # Создаем игрока в стартовой позиции уровня
         start_x, start_y = self.level.start_position
-        self.player = Player(start_x, start_y)
+        self.player = Player(start_x, start_y, sound_manager)
         self.camera = Camera()
         self.camera.set_target(self.player)
         
@@ -48,14 +49,20 @@ class GameLevel:
                 if event.key == pygame.K_ESCAPE:
                     if self.game_state == "playing":
                         self.game_state = "paused"
+                        # Звук при вызове паузы
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("menu_select")
                         return None
                     elif self.game_state == "paused":
                         self.game_state = "playing"
+                        # Звук при выходе из паузы
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("menu_select")
                         return None
                     elif self.game_state == "game_over":
                         return "menu"
                 elif event.key == pygame.K_r and self.game_state == "game_over":
-                    self.__init__()  # Перезапуск уровня
+                    self.__init__(self.sound_manager)  # Перезапуск уровня
                 elif event.key == pygame.K_SPACE and self.game_state == "level_complete":
                     return "menu"  # Возвращаемся в меню
                 elif event.key == pygame.K_f:  # Переключение полноэкранного режима
@@ -71,8 +78,14 @@ class GameLevel:
                 if self.game_state == "paused":
                     if event.key == pygame.K_DOWN:
                         self.selected_pause_option = (self.selected_pause_option + 1) % len(self.pause_options)
+                        # Звук перемещения в меню паузы
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("menu_change")
                     elif event.key == pygame.K_UP:
                         self.selected_pause_option = (self.selected_pause_option - 1) % len(self.pause_options)
+                        # Звук перемещения в меню паузы
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("menu_change")
                     elif event.key == pygame.K_RETURN:
                         if self.selected_pause_option == 0:  # Resume
                             self.game_state = "playing"
