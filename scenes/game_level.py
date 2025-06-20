@@ -153,7 +153,7 @@ class GameLevel:
         player_screen_pos = self.camera.apply(self.player.rect)
         player_screen_x, player_screen_y = player_screen_pos.centerx, player_screen_pos.centery
         
-        # Создаем увеличенную видимую область вокруг игрока (базовое освещение)
+        # Создаем видимую область вокруг игрока (базовое освещение)
         # Учитываем масштаб камеры для корректного размера света
         base_light_radius = 110 * self.camera.zoom
         pygame.draw.circle(self.darkness_surface, (0, 0, 0, 0), 

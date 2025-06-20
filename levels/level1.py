@@ -106,16 +106,15 @@ class Level1:
                 if room_type == "normal" and random.random() < 0.25:
                     room_type = "difficult"
                 
-                # Увеличенные размеры комнат - делаем их больше, но сохраняя лабиринтную структуру
                 if room_type == "start":
-                    width = int(cell_width * 0.75)  # Было 0.6
-                    height = int(cell_height * 0.75)  # Было 0.6
+                    width = int(cell_width * 0.75)  
+                    height = int(cell_height * 0.75)  
                 elif room_type == "exit":
-                    width = int(cell_width * 0.70)  # Было 0.55
-                    height = int(cell_height * 0.70)  # Было 0.55
+                    width = int(cell_width * 0.70)  
+                    height = int(cell_height * 0.70)  
                 else:
-                    width = int(cell_width * random.uniform(0.60, 0.80))  # Было 0.45, 0.65
-                    height = int(cell_height * random.uniform(0.60, 0.80))  # Было 0.45, 0.65
+                    width = int(cell_width * random.uniform(0.60, 0.80))  
+                    height = int(cell_height * random.uniform(0.60, 0.80))  
                 
                 # Координаты комнаты (с отступом от краев ячейки для коридоров)
                 padding_x = (cell_width - width) // 2
@@ -232,7 +231,7 @@ class Level1:
     
     def _create_corridor_rect(self, start_x, start_y, end_x, end_y):
         """Создает прямоугольник коридора с поворотом под прямым углом"""
-        corridor_width = 80  # Было 60, увеличиваем ширину коридора
+        corridor_width = 80  
         
         # Определяем, будет ли поворот сначала по горизонтали, затем по вертикали,
         # или наоборот (случайно, для разнообразия)

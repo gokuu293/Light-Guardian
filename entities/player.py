@@ -161,4 +161,3 @@ class Player:
         # Воспроизводим звук получения урона
         if self.sound_manager:
             self.sound_manager.play_sound("player_damage")
-        # Можно добавить другие эффекты урона (мигание, уменьшение здоровья и т.д.)

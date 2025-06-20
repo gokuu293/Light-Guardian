@@ -69,7 +69,7 @@ class MainMenu:
                         return "start_game"
                     elif self.selected == 1:
                         return "controls"
-                    elif self.selected == 2:  # Settings
+                    elif self.selected == 2: 
                         return "settings"
                     elif self.selected == 3:
                         return "exit"

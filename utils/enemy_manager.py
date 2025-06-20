@@ -13,7 +13,7 @@ class EnemyManager:
         self.sound_manager = sound_manager
         self.shadow_spawn_timer = 0
         self.ghost_spawn_timer = 0
-        self.max_shadows = 6  # Увеличиваем максимальное количество теневых врагов
+        self.max_shadows = 6  
         self.max_ghosts = 3
         self.shadow_spawn_interval = 600  # 10 секунд
         self.ghost_spawn_interval = 900   # 15 секунд
@@ -168,7 +168,7 @@ class EnemyManager:
                     self.enemies.append(enemy)
         
         # Если всё еще недостаточно врагов, используем старый метод спавна
-        min_enemy_count = 6  # Увеличено с 3 до 6
+        min_enemy_count = 6  
         if len(self.enemies) < min_enemy_count:
             remaining = min_enemy_count - len(self.enemies)
             for i in range(remaining):
